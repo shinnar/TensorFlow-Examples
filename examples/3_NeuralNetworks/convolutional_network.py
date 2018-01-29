@@ -14,6 +14,11 @@ from __future__ import division, print_function, absolute_import
 
 # Import MNIST data
 from tensorflow.examples.tutorials.mnist import input_data
+# mnist : {
+#           training : {images : [channel; x(28)*y(28); batch]}, 
+#           test : {images : [channel; x(28)*y(28); batch]}
+#         }
+
 mnist = input_data.read_data_sets("/tmp/data/", one_hot=False)
 
 import tensorflow as tf
@@ -30,28 +35,40 @@ dropout = 0.25 # Dropout, probability to drop a unit
 
 
 # Create the neural network
+# x_dict : {images : [channel; x(28)*y(28); batch]}
 def conv_net(x_dict, n_classes, dropout, reuse, is_training):
     # Define a scope for reusing the variables
     with tf.variable_scope('ConvNet', reuse=reuse):
         # TF Estimator input is a dict, in case of multiple inputs
+        # [channel; x(28)*y(28); batch]
         x = x_dict['images']
 
         # MNIST data input is a 1-D vector of 784 features (28*28 pixels)
         # Reshape to match picture format [Height x Width x Channel]
         # Tensor input become 4-D: [Batch Size, Height, Width, Channel]
+
+        # [channel; x(28)*y(28); batch] -> [channel; 1; x(28); y(28); batch]
+        # NB: this is ok, because we are splitting along factorization lines
         x = tf.reshape(x, shape=[-1, 28, 28, 1])
 
         # Convolution Layer with 32 filters and a kernel size of 5
+        # AJ: imposes a constraint: input is 4 dimensional, middle two must represent
+        # x/y, height/width, ...
+        # the element type must be a number
+        # conv1 -> [channel; 1; x(28); y(28); batch]
         conv1 = tf.layers.conv2d(x, 32, 5, activation=tf.nn.relu)
         # Max Pooling (down-sampling) with strides of 2 and kernel size of 2
+        # [channel; 1; x(28); y(28); batch] -> [channel; 1; x(14); y(14); batch]
         conv1 = tf.layers.max_pooling2d(conv1, 2, 2)
 
         # Convolution Layer with 64 filters and a kernel size of 3
         conv2 = tf.layers.conv2d(conv1, 64, 3, activation=tf.nn.relu)
         # Max Pooling (down-sampling) with strides of 2 and kernel size of 2
+        # [channel; 1; x(14); y(14); batch] -> [channel; 1; x(7); y(7); batch]
         conv2 = tf.layers.max_pooling2d(conv2, 2, 2)
 
         # Flatten the data to a 1-D vector for the fully connected layer
+        # [channel; x(7)*y(7); batch]
         fc1 = tf.contrib.layers.flatten(conv2)
 
         # Fully connected layer (in tf contrib folder for now)
@@ -66,6 +83,8 @@ def conv_net(x_dict, n_classes, dropout, reuse, is_training):
 
 
 # Define the model function (following TF Estimator Template)
+# features : {images : [channel; x(28)*y(28); batch]}
+# labels : [label; 10]
 def model_fn(features, labels, mode):
     # Build the neural network
     # Because Dropout have different behavior at training and prediction time, we
@@ -108,6 +127,9 @@ def model_fn(features, labels, mode):
 model = tf.estimator.Estimator(model_fn)
 
 # Define the input function for training
+# input_fun.x : {images : [channel; x(28)*y(28); batch]}
+# input_fun.y : [label; 10]
+# 
 input_fn = tf.estimator.inputs.numpy_input_fn(
     x={'images': mnist.train.images}, y=mnist.train.labels,
     batch_size=batch_size, num_epochs=None, shuffle=True)
